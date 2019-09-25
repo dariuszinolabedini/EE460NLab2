@@ -461,7 +461,14 @@ int SEXT(int immediateLength, int num)
   }
   else
   {
-    return num & 0xFFFF;
+    int starter = 0x8000;
+    while (amountToShift > 0)
+    {
+      num = num | starter;
+      amountToShift--;
+      starter = starter >> 1;
+    }
+    return num;
   }
 }
 
@@ -471,16 +478,22 @@ int SEXT(int immediateLength, int num)
 
 void setCC(int result)
 {
-  if (result < 0)                                                                   //Negative CC
+  if ((result & 0x8000) == 0x8000)                                                                   //Negative CC
   {
     NEXT_LATCHES.N = 1;
+    NEXT_LATCHES.Z = 0;
+    NEXT_LATCHES.P = 0;
   }
-  else if (result > 0)                                                              //Positive CC
+  else if ((result & 0x8000) == 0x0000)                                                              //Positive CC
   {
+    NEXT_LATCHES.N = 0;
+    NEXT_LATCHES.Z = 0;
     NEXT_LATCHES.P = 1;
   }
   else                                                                              //Zero CC
   {
+    NEXT_LATCHES.N = 0;
     NEXT_LATCHES.Z = 1;
+    NEXT_LATCHES.P = 0;
   }
 }
