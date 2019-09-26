@@ -418,12 +418,13 @@ void process_instruction()
    int sourceRegisterOne = 0;
    int sourceRegisterTwo = 0;
    int immediate5 = 0;
+   int pcoffset9 = 0;
    int result = 0;
    int instruction = ((MEMORY[(CURRENT_LATCHES.PC)/2][0]) + (MEMORY[(CURRENT_LATCHES.PC)/2][1] << 8));
 
    NEXT_LATCHES.PC = CURRENT_LATCHES.PC + 2;                                        //Increment PC
 
-   if ((instruction & 0x1000) == 0x1000)                                            //Decode add instruction
+   if ((instruction & 0xF000) == 0x1000)                                            //Decode add instruction
    {
      if ((instruction & 0x0020) == 0x0020)                                          //Add has immediate for addition
      {
@@ -444,6 +445,95 @@ void process_instruction()
        NEXT_LATCHES.REGS[destinationRegister] = result;                             //Set DR to result
      }
    }
+
+   else if ((instruction & 0xF000) == 0x5000)                                       //Decode and instruction
+   {
+     if ((instruction & 0x0020) == 0x0020)                                          //And has immediate
+     {
+       destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+       sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+       immediate5 = SEXT(5, instruction & 0x001F);                                  //Decode IMM5
+       result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] & immediate5);
+       setCC(result);                                                               //Set CC
+       NEXT_LATCHES.REGS[destinationRegister] = result;                             //Set DR to result
+     }
+     else if ((instruction & 0x0020) == 0x0000)                                     //And has register
+     {
+       destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+       sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+       sourceRegisterTwo = (instruction & 0x0007);                                  //Decode SR2
+       result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] & CURRENT_LATCHES.REGS[sourceRegisterTwo]);
+       setCC(result);                                                               //Set CC
+       NEXT_LATCHES.REGS[destinationRegister] = result;                             //Set DR to result
+     }
+   }
+
+    else if ((instruction & 0xF000) == 0x0000)                                      //Decode branch instruction
+    {
+      if ((instruction & 0x0E00) == 0x0000 | (instruction & 0x0E00) == 0x0E00)      //Decode unconditional branch
+      {
+        pcoffset9 = SEXT(9, instruction & 0x01FF);                                  //Decode PC9
+        pcoffset9 = pcoffset9 << 1;
+        NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+      }
+      else if ((instruction & 0x0E00) == 0x0C00)                                    //Decode BRNZ
+      {
+        if (CURRENT_LATCHES.N == 1 | CURRENT_LATCHES.Z == 1)                        //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+      else if ((instruction & 0x0E00) == 0x0A00)                                    //Decode BRNP
+      {
+        if (CURRENT_LATCHES.N == 1 | CURRENT_LATCHES.P == 1)                        //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+      else if ((instruction & 0x0E00) == 0x0600)                                    //Decode BRZP
+      {
+        if (CURRENT_LATCHES.Z == 1 | CURRENT_LATCHES.P == 1)                        //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+      else if ((instruction & 0x0E00) == 0x0800)                                    //Decode BRN}
+      {
+        if (CURRENT_LATCHES.N == 1)                                                 //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+      else if ((instruction & 0x0E00) == 0x0400)                                    //Decode BRZ
+      {
+        if (CURRENT_LATCHES.Z == 1)                                                 //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+      else if ((instruction & 0x0E00) == 0x0200)                                    //Decode BRP
+      {
+        if (CURRENT_LATCHES.P == 1)                                                 //BEN
+        {
+          pcoffset9 = SEXT(9, instruction & 0x01FF);                                //Decode PC9
+          pcoffset9 = pcoffset9 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+        }
+      }
+
+    }
+
+
 }
 
 /***************************************************************/
@@ -455,7 +545,8 @@ int SEXT(int immediateLength, int num)
 {
   int tempNum = num;
   int amountToShift = 16 - immediateLength;                                         //Calculate shift amount
-  if ((tempNum << amountToShift) & 0x8000 == 0)                                     //Test for positive or negative
+  int check = (tempNum >> (immediateLength-1)) & 0x0001;
+  if (check == 0x0000)                                                              //Test for positive or negative
   {
     return num;
   }
@@ -484,16 +575,16 @@ void setCC(int result)
     NEXT_LATCHES.Z = 0;
     NEXT_LATCHES.P = 0;
   }
-  else if ((result & 0x8000) == 0x0000)                                                              //Positive CC
-  {
-    NEXT_LATCHES.N = 0;
-    NEXT_LATCHES.Z = 0;
-    NEXT_LATCHES.P = 1;
-  }
-  else                                                                              //Zero CC
+  else if ((result & 0xFFFF) == 0x0000)                                                              //Zero CC
   {
     NEXT_LATCHES.N = 0;
     NEXT_LATCHES.Z = 1;
     NEXT_LATCHES.P = 0;
+  }
+  else                                                                              //Positive CC
+  {
+    NEXT_LATCHES.N = 0;
+    NEXT_LATCHES.Z = 0;
+    NEXT_LATCHES.P = 1;
   }
 }
