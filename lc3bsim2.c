@@ -418,6 +418,7 @@ void process_instruction()
    int baseRegister = 0;
    int sourceRegisterOne = 0;
    int sourceRegisterTwo = 0;
+   int byte = 0;
    int immediate5 = 0;
    int boffset6 = 0;
    int pcoffset9 = 0;
@@ -558,16 +559,18 @@ void process_instruction()
         }
     }
 
-  /*  else if ((instruction & 0xF000) == 0x2000)                                       //Decode LDB instruction
+    else if ((instruction & 0xF000) == 0x2000)                                       //Decode LDB instruction
     {
         destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
         baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
-        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6
-        result = Low16bits(SEXT(8, *MEMORY[(CURRENT_LATCHES.REGS[baseRegister] + boffset6)/2)][0]));
+        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6]
+        byte = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + boffset6);
+        byte = Low16bits(MEMORY[byte/2][byte%2]);
+        result = SEXT(8, byte);
         setCC(result);                                                               //Set CC
         NEXT_LATCHES.REGS[destinationRegister] = result;
     }
-    */
+
 }
 
 
