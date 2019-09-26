@@ -1,4 +1,5 @@
-.ORIG x3000
-Label ADD R0, R0, #1 ;Current test is infinite loop
-BRP Label
+.ORIG x0002
+Label ADD R1, R1, #1
+ADD R2, R2, #2
+LDB R4, R2, #0
 .END

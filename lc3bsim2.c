@@ -415,10 +415,13 @@ void process_instruction()
    *       -Update NEXT_LATCHES
    */
    int destinationRegister = 0;
+   int baseRegister = 0;
    int sourceRegisterOne = 0;
    int sourceRegisterTwo = 0;
    int immediate5 = 0;
+   int boffset6 = 0;
    int pcoffset9 = 0;
+   int pcoffset11 = 0;
    int result = 0;
    int instruction = ((MEMORY[(CURRENT_LATCHES.PC)/2][0]) + (MEMORY[(CURRENT_LATCHES.PC)/2][1] << 8));
 
@@ -533,8 +536,41 @@ void process_instruction()
 
     }
 
+    else if ((instruction & 0xF000) == 0xC000)                                       //Decode JMP/RET instruction
+    {
+        baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
+        NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[baseRegister];                        //Set PC to address specified in baseRegister
+    }
 
+    else if ((instruction & 0xF000) == 0x4000)                                       //Decode JSR/JSRR instruction
+    {
+        NEXT_LATCHES.REGS[7] = Low16bits(NEXT_LATCHES.PC);                           //Store PC into R7
+        if((instruction & 0x0800) == 0x0800)                                         //Decode JSR
+        {
+          pcoffset11 = SEXT(11, instruction & 0x07FF);                               //Decode PC11
+          pcoffset11 = pcoffset11 << 1;
+          NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset11);
+        }
+        else                                                                         //Decode JSRR
+        {
+          baseRegister = (instruction & 0x01C0) >> 6;                                //Decode BR
+          NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[baseRegister];                      //Set PC to address specified in baseRegister
+        }
+    }
+
+  /*  else if ((instruction & 0xF000) == 0x2000)                                       //Decode LDB instruction
+    {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
+        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6
+        result = Low16bits(SEXT(8, *MEMORY[(CURRENT_LATCHES.REGS[baseRegister] + boffset6)/2)][0]));
+        setCC(result);                                                               //Set CC
+        NEXT_LATCHES.REGS[destinationRegister] = result;
+    }
+    */
 }
+
+
 
 /***************************************************************/
 /*              Function to sign extend a value.               */
