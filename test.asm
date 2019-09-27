@@ -1,5 +1,5 @@
-.ORIG x0002
-Label ADD R1, R1, #1
-ADD R2, R2, #2
-LDB R4, R2, #0
+.ORIG x3000
+LEA R4, Label
+STB R4, R4, #3
+Label ADD R0, R1, #1
 .END

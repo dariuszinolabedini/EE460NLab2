@@ -418,8 +418,13 @@ void process_instruction()
    int baseRegister = 0;
    int sourceRegisterOne = 0;
    int sourceRegisterTwo = 0;
+   int bit15 = 0;
    int byte = 0;
+   int word = 0;
+   int temp = 0;
+   int amount4 = 0;
    int immediate5 = 0;
+   int offset6 = 0;
    int boffset6 = 0;
    int pcoffset9 = 0;
    int pcoffset11 = 0;
@@ -545,7 +550,7 @@ void process_instruction()
 
     else if ((instruction & 0xF000) == 0x4000)                                       //Decode JSR/JSRR instruction
     {
-        NEXT_LATCHES.REGS[7] = Low16bits(NEXT_LATCHES.PC);                           //Store PC into R7
+        temp = Low16bits(NEXT_LATCHES.PC);                                           //Store PC
         if((instruction & 0x0800) == 0x0800)                                         //Decode JSR
         {
           pcoffset11 = SEXT(11, instruction & 0x07FF);                               //Decode PC11
@@ -557,19 +562,89 @@ void process_instruction()
           baseRegister = (instruction & 0x01C0) >> 6;                                //Decode BR
           NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[baseRegister];                      //Set PC to address specified in baseRegister
         }
+        NEXT_LATCHES.REGS[7] = temp;
     }
 
     else if ((instruction & 0xF000) == 0x2000)                                       //Decode LDB instruction
     {
         destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
         baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
-        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6]
+        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6
         byte = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + boffset6);
         byte = Low16bits(MEMORY[byte/2][byte%2]);
         result = SEXT(8, byte);
+        result = result & 0x00FF;
         setCC(result);                                                               //Set CC
         NEXT_LATCHES.REGS[destinationRegister] = result;
     }
+
+    else if ((instruction & 0xF000) == 0x6000)                                       //Decode LDW instruction
+    {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
+        offset6 = SEXT(6, instruction & 0x003F);                                     //Decode offset6
+        offset6 = offset6 << 1;
+        word = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + offset6);
+        word = Low16bits((MEMORY[word/2][word%2]) + (MEMORY[word/2][(word%2)+1] << 8 ));
+        result = word;
+        setCC(result);                                                               //Set CC
+        NEXT_LATCHES.REGS[destinationRegister] = result;
+    }
+
+    else if ((instruction & 0xF000) == 0xE000)                                       //Decode LEA instruction
+    {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        pcoffset9 = SEXT(9, instruction & 0x01FF);                                   //Decode PC9
+        pcoffset9 = pcoffset9 << 1;
+        NEXT_LATCHES.REGS[destinationRegister] = Low16bits(NEXT_LATCHES.PC + pcoffset9);
+    }
+
+    else if ((instruction & 0xF000) == 0x9000)                                       //Decode NOT instruction
+    {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+        result = Low16bits(~CURRENT_LATCHES.REGS[sourceRegisterOne]);                //Perform the not
+        setCC(result);
+        NEXT_LATCHES.REGS[destinationRegister] = result;
+    }
+
+    else if ((instruction & 0xF000) == 0xC000)                                       //Decode RET instruction
+    {
+        NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[7];                                   //Get PC from R7
+    }
+
+    else if ((instruction & 0xF000) == 0xD000)                                       //Decode shift instruction
+    {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+        amount4 = (instruction & 0x000F);                                            //Decode amount4
+        if ((instruction & 0x0010) == 0x0000)                                        //Decode lshf
+        {
+          result = CURRENT_LATCHES.REGS[sourceRegisterOne] << amount4;
+        }
+        else if ((instruction & 0x0020) == 0x0000)                                   //Decode rshfl
+        {
+          result = CURRENT_LATCHES.REGS[sourceRegisterOne] >> amount4;
+        }
+        else                                                                         //Decode rshfa
+        {
+          bit15 = CURRENT_LATCHES.REGS[sourceRegisterOne] & 0x8000;
+          result = CURRENT_LATCHES.REGS[sourceRegisterOne] >> amount4;
+          result = result | bit15;
+        }
+        setCC(result);
+        NEXT_LATCHES.REGS[destinationRegister] = result;
+    }
+
+    else if ((instruction & 0xF000) == 0x3000)                                       //Decode STB instruction
+    {
+        sourceRegisterOne = (instruction & 0x0E00) >> 9;                             //Decode SR
+        baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
+        boffset6 = SEXT(6, instruction & 0x003F);                                    //Decode boffset6
+        byte = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + boffset6);
+        MEMORY[byte/2][byte%2] = Low16bits(NEXT_LATCHES.REGS[sourceRegisterOne] & 0x00FF);
+    }
+
 
 }
 
@@ -577,7 +652,7 @@ void process_instruction()
 
 /***************************************************************/
 /*              Function to sign extend a value.               */
-/*       Pre: Parameter num is in the lowest bits possible.     */
+/*       Pre: Parameter num is in the lowest bits possible.    */
 /***************************************************************/
 
 int SEXT(int immediateLength, int num)
