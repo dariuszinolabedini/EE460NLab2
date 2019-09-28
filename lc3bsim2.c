@@ -426,6 +426,7 @@ void process_instruction()
    int immediate5 = 0;
    int offset6 = 0;
    int boffset6 = 0;
+   int trapvect8 = 0;
    int pcoffset9 = 0;
    int pcoffset11 = 0;
    int result = 0;
@@ -599,15 +600,6 @@ void process_instruction()
         NEXT_LATCHES.REGS[destinationRegister] = Low16bits(NEXT_LATCHES.PC + pcoffset9);
     }
 
-    else if ((instruction & 0xF000) == 0x9000)                                       //Decode NOT instruction
-    {
-        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
-        sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
-        result = Low16bits(~CURRENT_LATCHES.REGS[sourceRegisterOne]);                //Perform the not
-        setCC(result);
-        NEXT_LATCHES.REGS[destinationRegister] = result;
-    }
-
     else if ((instruction & 0xF000) == 0xC000)                                       //Decode RET instruction
     {
         NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[7];                                   //Get PC from R7
@@ -645,7 +637,46 @@ void process_instruction()
         MEMORY[byte/2][byte%2] = Low16bits(NEXT_LATCHES.REGS[sourceRegisterOne] & 0x00FF);
     }
 
+    else if ((instruction & 0xF000) == 0x7000)                                       //Decode STW instruction
+    {
+        sourceRegisterOne = (instruction & 0x0E00) >> 9;                             //Decode SR
+        baseRegister = (instruction & 0x01C0) >> 6;                                  //Decode BR
+        offset6 = SEXT(6, instruction & 0x003F);                                     //Decode offset6
+        offset6 = offset6 << 1;
+        word = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + offset6);
+        MEMORY[word/2][word%2] = Low16bits((NEXT_LATCHES.REGS[sourceRegisterOne] & 0x00FF));
+        MEMORY[word/2][(word%2)+1] = Low16bits(NEXT_LATCHES.REGS[sourceRegisterOne] & 0xFF00) >> 8;
+    }
 
+    else if ((instruction & 0xF000) == 0xF000)                                       //Decode Trap instruction
+    {
+        NEXT_LATCHES.REGS[7] = NEXT_LATCHES.PC;
+        trapvect8 = instruction & 0x00FF;                                            //Decode trapvect8
+        trapvect8 = trapvect8 << 1;
+        NEXT_LATCHES.PC = MEMORY[trapvect8/2][0];                                    //Load pc with 0s
+    }
+
+    if ((instruction & 0xF000) == 0x9000)                                            //Decode xor/not instruction
+    {
+      if ((instruction & 0x0020) == 0x0020)                                          //XOR has immediate
+      {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+        immediate5 = SEXT(5, instruction & 0x001F);                                  //Decode IMM5
+        result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] ^ immediate5);
+        setCC(result);                                                               //Set CC
+        NEXT_LATCHES.REGS[destinationRegister] = result;                             //Set DR to result
+      }
+      else if ((instruction & 0x0020) == 0x0000)                                     //XOR has register
+      {
+        destinationRegister = (instruction & 0x0E00) >> 9;                           //Decode DR
+        sourceRegisterOne = (instruction & 0x01C0) >> 6;                             //Decode SR1
+        sourceRegisterTwo = (instruction & 0x0007);                                  //Decode SR2
+        result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] ^ CURRENT_LATCHES.REGS[sourceRegisterTwo]);
+        setCC(result);                                                               //Set CC
+        NEXT_LATCHES.REGS[destinationRegister] = result;                             //Set DR to result
+      }
+    }
 }
 
 

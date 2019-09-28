@@ -1,5 +1,10 @@
 .ORIG x3000
-LEA R4, Label
-STB R4, R4, #3
-Label ADD R0, R1, #1
+ADD R1, R1, #5
+XOR R1, R1, #5
+ADD R1, R0, #5
+XOR R2, R1, #4
+ADD R4, R4, #5
+ADD R3, R3, #4
+XOR R5, R3, R4
+HALT
 .END
