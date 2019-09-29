@@ -1,5 +1,4 @@
 /*
-
     Name 1: Bilal Quraishi
     Name 2: Darius Zinolabedini
     UTEID 1: buq57
@@ -430,7 +429,7 @@ void process_instruction()
    int pcoffset9 = 0;
    int pcoffset11 = 0;
    int result = 0;
-   int instruction = ((MEMORY[(CURRENT_LATCHES.PC)/2][0]) + (MEMORY[(CURRENT_LATCHES.PC)/2][1] << 8));
+   int instruction = Low16bits(((MEMORY[(CURRENT_LATCHES.PC)/2][0]) + (MEMORY[(CURRENT_LATCHES.PC)/2][1] << 8)));
 
    NEXT_LATCHES.PC = CURRENT_LATCHES.PC + 2;                                        //Increment PC
 
@@ -513,7 +512,7 @@ void process_instruction()
           NEXT_LATCHES.PC = Low16bits(NEXT_LATCHES.PC + pcoffset9);
         }
       }
-      else if ((instruction & 0x0E00) == 0x0800)                                    //Decode BRN}
+      else if ((instruction & 0x0E00) == 0x0800)                                    //Decode BRN
       {
         if (CURRENT_LATCHES.N == 1)                                                 //BEN
         {
@@ -574,7 +573,6 @@ void process_instruction()
         byte = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + boffset6);
         byte = Low16bits(MEMORY[byte/2][byte%2]);
         result = SEXT(8, byte);
-        result = result & 0x00FF;
         setCC(result);                                                               //Set CC
         NEXT_LATCHES.REGS[destinationRegister] = result;
     }
@@ -586,7 +584,7 @@ void process_instruction()
         offset6 = SEXT(6, instruction & 0x003F);                                     //Decode offset6
         offset6 = offset6 << 1;
         word = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + offset6);
-        word = Low16bits((MEMORY[word/2][word%2]) + (MEMORY[word/2][(word%2)+1] << 8 ));
+        word = Low16bits((MEMORY[word/2][0]) + (MEMORY[word/2][1] << 8));
         result = word;
         setCC(result);                                                               //Set CC
         NEXT_LATCHES.REGS[destinationRegister] = result;
@@ -612,17 +610,22 @@ void process_instruction()
         amount4 = (instruction & 0x000F);                                            //Decode amount4
         if ((instruction & 0x0010) == 0x0000)                                        //Decode lshf
         {
-          result = CURRENT_LATCHES.REGS[sourceRegisterOne] << amount4;
+          result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] << amount4);
         }
         else if ((instruction & 0x0020) == 0x0000)                                   //Decode rshfl
         {
-          result = CURRENT_LATCHES.REGS[sourceRegisterOne] >> amount4;
+          result = Low16bits(CURRENT_LATCHES.REGS[sourceRegisterOne] >> amount4);
         }
         else                                                                         //Decode rshfa
         {
-          bit15 = CURRENT_LATCHES.REGS[sourceRegisterOne] & 0x8000;
-          result = CURRENT_LATCHES.REGS[sourceRegisterOne] >> amount4;
-          result = result | bit15;
+          bit15 = (CURRENT_LATCHES.REGS[sourceRegisterOne] & 0x8000);
+          result = CURRENT_LATCHES.REGS[sourceRegisterOne];
+          while (amount4 > 0)
+          {
+            result = result >> 1;
+            result = result | bit15;
+            amount4--;
+          }
         }
         setCC(result);
         NEXT_LATCHES.REGS[destinationRegister] = result;
@@ -644,8 +647,8 @@ void process_instruction()
         offset6 = SEXT(6, instruction & 0x003F);                                     //Decode offset6
         offset6 = offset6 << 1;
         word = Low16bits(CURRENT_LATCHES.REGS[baseRegister] + offset6);
-        MEMORY[word/2][word%2] = Low16bits((NEXT_LATCHES.REGS[sourceRegisterOne] & 0x00FF));
-        MEMORY[word/2][(word%2)+1] = Low16bits(NEXT_LATCHES.REGS[sourceRegisterOne] & 0xFF00) >> 8;
+        MEMORY[word/2][0] = Low16bits((NEXT_LATCHES.REGS[sourceRegisterOne] & 0x00FF));
+        MEMORY[word/2][1] = Low16bits(NEXT_LATCHES.REGS[sourceRegisterOne] & 0xFF00) >> 8;
     }
 
     else if ((instruction & 0xF000) == 0xF000)                                       //Decode Trap instruction
@@ -653,10 +656,10 @@ void process_instruction()
         NEXT_LATCHES.REGS[7] = NEXT_LATCHES.PC;
         trapvect8 = instruction & 0x00FF;                                            //Decode trapvect8
         trapvect8 = trapvect8 << 1;
-        NEXT_LATCHES.PC = MEMORY[trapvect8/2][0];                                    //Load pc with 0s
+        NEXT_LATCHES.PC = MEMORY[trapvect8/2][0];                                    //Load PC with 0s
     }
 
-    if ((instruction & 0xF000) == 0x9000)                                            //Decode xor/not instruction
+    if ((instruction & 0xF000) == 0x9000)                                            //Decode XOR/NOT instruction
     {
       if ((instruction & 0x0020) == 0x0020)                                          //XOR has immediate
       {
@@ -726,7 +729,7 @@ void setCC(int result)
     NEXT_LATCHES.Z = 1;
     NEXT_LATCHES.P = 0;
   }
-  else                                                                              //Positive CC
+  else                                                                                              //Positive CC
   {
     NEXT_LATCHES.N = 0;
     NEXT_LATCHES.Z = 0;
